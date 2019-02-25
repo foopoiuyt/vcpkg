@@ -33,6 +33,9 @@
 ##
 ## This switch is only valid when building with the `--head` command line flag.
 ##
+## ### HEADERS
+## Headers to add on the request
+##
 ## ## Notes
 ## The helper [`vcpkg_from_github`](vcpkg_from_github.md) should be used for downloading from GitHub projects.
 ##
@@ -44,7 +47,7 @@
 function(vcpkg_download_distfile VAR)
     set(options SKIP_SHA512)
     set(oneValueArgs FILENAME SHA512)
-    set(multipleValuesArgs URLS)
+    set(multipleValuesArgs URLS HEADERS)
     cmake_parse_arguments(vcpkg_download_distfile "${options}" "${oneValueArgs}" "${multipleValuesArgs}" ${ARGN})
 
     if(NOT DEFINED vcpkg_download_distfile_URLS)
@@ -110,10 +113,16 @@ function(vcpkg_download_distfile VAR)
         if(_VCPKG_DOWNLOAD_TOOL STREQUAL "ARIA2" AND NOT SAMPLE_URL MATCHES "aria2")
             vcpkg_find_acquire_program("ARIA2")
             message(STATUS "Downloading ${vcpkg_download_distfile_FILENAME}...")
+            if (vcpkg_download_distfile_HEADERS)
+                foreach(HEADER ${vcpkg_download_distfile_HEADERS})
+                    list(APPEND AUTH_ARGS "--header=${HEADER}")
+                endforeach()
+            endif()
             execute_process(
                 COMMAND ${ARIA2} ${vcpkg_download_distfile_URLS}
                 -o temp/${vcpkg_download_distfile_FILENAME}
                 -l download-${vcpkg_download_distfile_FILENAME}-detailed.log
+                ${AUTH_ARGS}
                 OUTPUT_FILE download-${vcpkg_download_distfile_FILENAME}-out.log
                 ERROR_FILE download-${vcpkg_download_distfile_FILENAME}-err.log
                 RESULT_VARIABLE error_code
@@ -140,7 +149,12 @@ function(vcpkg_download_distfile VAR)
         else()
             foreach(url IN LISTS vcpkg_download_distfile_URLS)
                 message(STATUS "Downloading ${url}...")
-                file(DOWNLOAD ${url} "${download_file_path_part}" STATUS download_status)
+                if (vcpkg_download_distfile_HEADERS)
+                    foreach(HEADER ${vcpkg_download_distfile_HEADERS})
+                        list(APPEND AUTH_ARGS HTTPHEADER ${HEADER})
+                    endforeach()
+                endif()
+                file(DOWNLOAD ${url} "${download_file_path_part}" STATUS download_status ${AUTH_ARGS})
                 list(GET download_status 0 status_code)
                 if (NOT "${status_code}" STREQUAL "0")
                     message(STATUS "Downloading ${url}... Failed. Status: ${download_status}")
